@@ -29,10 +29,8 @@ architecture Behavioral of project_reti_logiche is
 
   --Segnali per registri colonna e riga
 
-  signal col_8: std_logic_vector(7 downto 0);
-  signal col_16: std_logic_vector(15 downto 0);
-  signal rig_8: std_logic_vector(7 downto 0);
-  signal rig_16: std_logic_vector(15 downto 0);
+  signal col: std_logic_vector(7 downto 0);
+  signal rig: std_logic_vector(7 downto 0);
 
   --Segnali per accesso alla RAM
   signal current_address: std_logic_vector(15 downto 0);
@@ -64,7 +62,7 @@ architecture Behavioral of project_reti_logiche is
   signal floor_v: std_logic_vector(7 downto 0);
   signal shift_temp: std_logic_vector(7 downto 0);
   signal shift_level: integer;
-
+ 
 begin
 
     process(i_clk, i_rst, next_state)
@@ -73,38 +71,38 @@ begin
             if(i_rst = '1') then
                 current_state <= S_RST;
             else
-                current_state <= S_START;
+                current_state <= next_state;
             end if;
         end if;
     end process;
   
-	process(current_state, i_start, offset, current_address, final_address, flag  )
+	process(current_state, i_start, i_data, max_v, min_v, delta, floor_v, shift_temp, shift_level, base_address, offset, current_address, current_address_next, final_address, pixel, pixel_temp, new_pixel, flag, count, count_next )
 	begin
 		next_state <= current_state;
 		case current_state is
 			when S_RST =>
 				if (i_start = '1') then
-				    o_done <= '0';
-				    o_en <= '0';
+					o_en <= '0';
 				    o_we <= '0';
 				    flag <= '0';
-					next_state <= S_START;
+				    next_state <= S_START;
 				else
 					next_state <= S_RST;
 				end if;
 			when S_START =>
-			    o_address <= "0000000000000000";
 			    o_en <= '1';
+			    o_we <= '0';
+			    o_address <= "0000000000000000";
 				next_state <= S_LOAD_COL;
 			when S_LOAD_COL =>
-                col_8 <= i_data;	
+                col <= i_data;	
                 o_address <= "0000000000000001";		    
 				next_state <= S_LOAD_RIG;
 			when S_LOAD_RIG =>
-			    rig_8 <= i_data;
+			    rig <= i_data;
 			    o_address <= "0000000000000010";
 			    current_address <= base_address;
-			    o_en <= '0';
+			    o_en<= '0';
 				next_state <= S_CALC_ADDR;
 			when S_CALC_ADDR =>
 			    count <= offset;
@@ -116,6 +114,7 @@ begin
 				end if;
 			when S_LOAD_PIXEL =>
 			    pixel <= i_data;
+			    current_address_next <= current_address + "0000000000000001";
 				if (flag = '0') then
 				    o_en <= '0';
 					next_state <= S_MIN_MAX;
@@ -124,8 +123,8 @@ begin
 					next_state <= S_NEW_PIXEL;
 				end if;
 			when S_MIN_MAX =>
-			    current_address_next <= current_address + "0000000000000001";
-				if (current_address = "0000000000000010") then
+			    current_address <= current_address_next;
+			    if (current_address = "0000000000000010") then
 					max_v <= pixel;
 					min_v <= pixel;
 				else
@@ -142,7 +141,7 @@ begin
 					next_state <= S_LOAD_PIXEL;				
 				end if ;
 			when S_SHIFT =>
-				current_address <= current_address_next;
+				
 			    count <= count_next;
 				delta <= max_v - min_v;
 				if (delta = "00000000") then
@@ -164,11 +163,11 @@ begin
 				elsif (delta = "11111111") then
 					floor_v <= "00001000";					
 				end if;
-				shift_temp <= "00001000" - delta;
+				shift_temp <= "00001000" - floor_v;
 				shift_level <= TO_INTEGER(unsigned(shift_temp));
 				next_state <= S_LOAD_PIXEL;
 			when S_NEW_PIXEL =>
-				current_address_next <= current_address + "0000000000000001";
+			    current_address <= current_address_next;
 				pixel_temp <= std_logic_vector(shift_left(unsigned(pixel-min_v), shift_level));
 				if (pixel_temp < "11111111") then
 					new_pixel <= pixel_temp;
@@ -179,7 +178,7 @@ begin
 			    o_we <= '1';
 				next_state <= S_SAVE_PIXEL;
 			when S_SAVE_PIXEL =>
-				current_address <= current_address_next;
+				
 			    o_address <= current_address;
 			    o_data <= new_pixel;
 				if (current_address = offset) then
@@ -199,9 +198,7 @@ begin
   
   --Calcolo e assegnamento dei registri responsabili degli indirizzamenti in memoria
   
-  col_16 <= std_logic_vector(resize(unsigned(col_8), col_16'length));
-  rig_16 <= std_logic_vector(resize(unsigned(rig_8), rig_16'length));
-  offset <= std_logic_vector(unsigned(col_16(15 downto 0))*unsigned(rig_16(15 downto 0)));
+  offset <= std_logic_vector(unsigned(col)*unsigned(rig));
   base_address <= "0000000000000010";
   final_address <= std_logic_vector(unsigned(offset(15 downto 0)) + unsigned(base_address(15 downto 0)));
   
