@@ -78,7 +78,7 @@ begin
         end if;
     end process;
   
-	process(current_state, next_state, i_start, i_data, count, count_next, offset, current_address, current_address_next, final_address  )
+	process(current_state, i_start, offset, current_address, final_address, flag  )
 	begin
 		next_state <= current_state;
 		case current_state is
