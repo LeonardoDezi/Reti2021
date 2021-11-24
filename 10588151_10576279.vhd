@@ -1,4 +1,4 @@
-vlibrary ieee;
+library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_unsigned.all;
 use ieee.numeric_std.all;
@@ -18,7 +18,7 @@ entity project_reti_logiche is
     );
 end project_reti_logiche;
 
-architecture Behavioral of project_reti_logiche is
+Architecture Behavioral of project_reti_logiche is
 
   type state_type is (S_RST,S_START,S_LOAD_COL,S_LOAD_RIG,S_CALC_ADDR,S_LOAD_PIXEL,S_MIN_MAX,S_SHIFT,S_NEW_PIXEL,S_SAVE_PIXEL,S_DONE);
 
@@ -119,8 +119,7 @@ begin
 				        o_en <= '0';
 					    next_state <= S_NEW_PIXEL;
 				    end if;
-				else 
-				    current_address <= base_address;
+				else
 				    o_en <= '0';
 				    next_state <= S_SHIFT;
 				end if;
@@ -140,6 +139,7 @@ begin
 		        o_en <= '1';
 		      	next_state <= S_LOAD_PIXEL;				
 			when S_SHIFT =>
+			    current_address <= base_address;
 				delta <= max_v - min_v;
 				if (delta = "00000000") then
 					floor_v <= "00000000";
@@ -162,7 +162,7 @@ begin
 				end if;
 				shift_temp <= "00001000" - floor_v;
 				shift_level <= TO_INTEGER(unsigned(shift_temp));
-				flag <= '0';
+				flag <= '1';
 				next_state <= S_LOAD_PIXEL;
 			when S_NEW_PIXEL =>
 			    current_address <= current_address_next;
