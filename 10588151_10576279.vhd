@@ -40,9 +40,6 @@ Architecture Behavioral of project_reti_logiche is
   signal offset: std_logic_vector(15 downto 0);
   signal final_address: std_logic_vector(15 downto 0);
   signal base_address: std_logic_vector(15 downto 0);
-
-  --Segnale per i due loop
-  signal flag : std_logic;
   
   --Segnale per il registro per il pixel considerato
   signal pixel: std_logic_vector(7 downto 0);
@@ -80,7 +77,7 @@ begin
         end if;
     end process;
   
-	process(current_state, i_start, i_data, max_v, min_v, delta, floor_v, shift_temp, shift_level, base_address, offset, current_address, current_address_next, new_address, new_address_next, final_address, pixel, pixel_temp, new_pixel, flag)
+	process(current_state, i_start, i_data, max_v, min_v, delta, floor_v, shift_temp, shift_level, base_address, offset, current_address, current_address_next, new_address, new_address_next, final_address, pixel, pixel_temp, new_pixel,pixel_16, min_16)
 	begin
 		next_state <= current_state;
 		case current_state is
@@ -89,7 +86,6 @@ begin
 				    o_done <= '0';
 					o_en <= '0';
 				    o_we <= '0';
-				    flag <= '0';
 				    next_state <= S_START;
 				else
 				    o_done <= '0';
