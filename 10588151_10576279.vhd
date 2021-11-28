@@ -20,7 +20,7 @@ end project_reti_logiche;
 
 Architecture Behavioral of project_reti_logiche is
 
-  type state_type is (S_RST,S_START,S_LOAD_COL,S_LOAD_RIG,S_CALC_ADDR,S_LOAD_PIXEL,S_MIN_MAX,S_SHIFT,S_NEW_PIXEL,S_SAVE_PIXEL,S_DONE);
+  type state_type is (S_RST,S_START,S_LOAD_COL,S_LOAD_RIG,S_CALC_ADDR,S_LOAD_PIXEL,S_MIN_MAX,S_SHIFT,S_LOAD_PIXEL_NEW,S_NEW_PIXEL,S_SAVE_PIXEL,S_RETURN_LOAD,S_DONE);
 
   --Segnali per registri dello stato della FSM
   
@@ -35,6 +35,8 @@ Architecture Behavioral of project_reti_logiche is
   --Segnali per accesso alla RAM
   signal current_address: std_logic_vector(15 downto 0);
   signal current_address_next: std_logic_vector(15 downto 0);
+  signal new_address: std_logic_vector(15 downto 0);
+  signal new_address_next: std_logic_vector(15 downto 0);
   signal offset: std_logic_vector(15 downto 0);
   signal final_address: std_logic_vector(15 downto 0);
   signal base_address: std_logic_vector(15 downto 0);
@@ -46,7 +48,7 @@ Architecture Behavioral of project_reti_logiche is
   signal pixel: std_logic_vector(7 downto 0);
 
   --Segnale per il pixel temporaneo
-  signal pixel_temp: std_logic_vector(7 downto 0);
+  signal pixel_temp: std_logic_vector(15 downto 0);
 
   --Segnale per il nuovo pixel
   signal new_pixel: std_logic_vector(7 downto 0);
@@ -60,7 +62,11 @@ Architecture Behavioral of project_reti_logiche is
   signal floor_v: std_logic_vector(7 downto 0);
   signal shift_temp: std_logic_vector(7 downto 0);
   signal shift_level: integer;
- 
+  
+  --Conversioni necessarie
+  signal pixel_16: std_logic_vector(15 downto 0);
+  signal min_16: std_logic_vector(15 downto 0);
+  
 begin
 
     process(i_clk, i_rst, next_state)
@@ -74,17 +80,19 @@ begin
         end if;
     end process;
   
-	process(current_state, i_start, i_data, max_v, min_v, delta, floor_v, shift_temp, shift_level, base_address, offset, current_address, current_address_next, final_address, pixel, pixel_temp, new_pixel, flag)
+	process(current_state, i_start, i_data, max_v, min_v, delta, floor_v, shift_temp, shift_level, base_address, offset, current_address, current_address_next, new_address, new_address_next, final_address, pixel, pixel_temp, new_pixel, flag)
 	begin
 		next_state <= current_state;
 		case current_state is
 			when S_RST =>
 				if (i_start = '1') then
+				    o_done <= '0';
 					o_en <= '0';
 				    o_we <= '0';
 				    flag <= '0';
 				    next_state <= S_START;
 				else
+				    o_done <= '0';
 					next_state <= S_RST;
 				end if;
 			when S_START =>
@@ -97,31 +105,24 @@ begin
 				next_state <= S_LOAD_RIG;
 			when S_LOAD_RIG =>
 			    rig <= i_data;
-			    o_address <= "0000000000000010";
 			    current_address <= base_address;
-			    o_en <= '0';
+			    o_address <= base_address;
 				next_state <= S_CALC_ADDR;
 			when S_CALC_ADDR =>
-				if (offset ="0000000000000000") then
+				if (offset = "0000000000000000") then
 					next_state <= S_DONE;
 				else
-				    o_en <= '1';
+				    new_address <= final_address - "0000000000000001" ;
 					next_state <= S_LOAD_PIXEL;
 				end if;
 			when S_LOAD_PIXEL =>
-			    pixel <= i_data;
 			    current_address_next <= current_address + "0000000000000001";
-			    if (current_address_next /= final_address) then
-				    if (flag = '0') then
-				        o_en <= '0';
-					    next_state <= S_MIN_MAX;
-				    else
-				        o_en <= '0';
-					    next_state <= S_NEW_PIXEL;
-				    end if;
-				else
-				    o_en <= '0';
+			    if (current_address = final_address) then
 				    next_state <= S_SHIFT;
+				else
+				    o_address <= current_address;
+			        pixel <= i_data;
+		      	    next_state <= S_MIN_MAX;
 				end if;
 			when S_MIN_MAX =>
 			    current_address <= current_address_next;
@@ -135,11 +136,10 @@ begin
 			       	  min_v <= pixel;
 			       end if ;
 			    end if ;
-		        o_address <= current_address;
-		        o_en <= '1';
 		      	next_state <= S_LOAD_PIXEL;				
 			when S_SHIFT =>
-			    current_address <= base_address;
+			    current_address <= base_address; 
+			    o_address <= base_address;
 				delta <= max_v - min_v;
 				if (delta = "00000000") then
 					floor_v <= "00000000";
@@ -162,30 +162,39 @@ begin
 				end if;
 				shift_temp <= "00001000" - floor_v;
 				shift_level <= TO_INTEGER(unsigned(shift_temp));
-				flag <= '1';
-				next_state <= S_LOAD_PIXEL;
-			when S_NEW_PIXEL =>
+				next_state <= S_LOAD_PIXEL_NEW;
+			when S_LOAD_PIXEL_NEW =>
+			    current_address_next <= current_address + "0000000000000001";
+		        new_address_next <= new_address + "0000000000000001";
+			    if (current_address = final_address) then
+					next_state <= S_DONE;
+				else
+				     pixel <= i_data;
+			         next_state <= S_NEW_PIXEL;
+			     end if;
+		     when S_NEW_PIXEL =>
 			    current_address <= current_address_next;
-				pixel_temp <= std_logic_vector(shift_left(unsigned(pixel-min_v), shift_level));
-				if (pixel_temp < "11111111") then
-					new_pixel <= pixel_temp;
+			    new_address <= new_address_next;
+				pixel_temp <= std_logic_vector(shift_left(unsigned(pixel_16-min_16), shift_level));
+				if (pixel_temp < "0000000011111111") then
+					new_pixel <= pixel_temp(7 downto 0);
 				else
 					new_pixel <= "11111111";
-				end if ;
-			    o_en <= '1';
-			    o_we <= '1';
+				end if ;		    
 				next_state <= S_SAVE_PIXEL;
 			when S_SAVE_PIXEL =>
-				
-			    o_address <= current_address;
+			    o_we <= '1';
+				o_address <= new_address;
 			    o_data <= new_pixel;
-				if (current_address = final_address) then
-					next_state <= S_DONE;
-				elsif (current_address /= final_address) then
-					next_state <= S_LOAD_PIXEL;
-				end if ;
+				next_state <= S_RETURN_LOAD;
+			when S_RETURN_LOAD =>
+			    o_we <= '0';
+			    o_address <= current_address;
+			    next_state <= S_LOAD_PIXEL_NEW;
 			when S_DONE =>
-				o_done <= '0';
+			    o_en <= '0';
+			    o_we <= '0';
+				o_done <= '1';
 				if (i_start = '1') then
 					next_state <= S_DONE;
 				else
@@ -196,8 +205,12 @@ begin
   
   --Calcolo e assegnamento dei registri responsabili degli indirizzamenti in memoria
   
-  offset <= std_logic_vector(unsigned(col)*unsigned(rig));
-  base_address <= "0000000000000001";
-  final_address <= base_address + offset + "0000000000000001";
+  offset <= col*rig;
+  base_address <= "0000000000000010";
+  final_address <= base_address + offset;
+  
+  --Conversione registri interessati
+  pixel_16 <= X"00" & pixel;
+  min_16 <=  X"00" & min_v;
   
 end Behavioral;
