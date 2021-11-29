@@ -23,7 +23,7 @@ Architecture Behavioral of project_reti_logiche is
   type state_type is (S_RST,S_START,S_LOAD_COL,S_LOAD_RIG,S_CALC_ADDR,S_LOAD_PIXEL,S_MIN_MAX,S_SHIFT,S_LOAD_PIXEL_NEW,S_NEW_PIXEL,S_SAVE_PIXEL,S_RETURN_LOAD,S_DONE);
 
   --Segnali per registri dello stato della FSM
-  
+ 
   signal current_state: state_type;
   signal next_state: state_type;
 
@@ -37,9 +37,9 @@ Architecture Behavioral of project_reti_logiche is
   signal current_address_next: std_logic_vector(15 downto 0);
   signal new_address: std_logic_vector(15 downto 0);
   signal new_address_next: std_logic_vector(15 downto 0);
-  signal offset: std_logic_vector(15 downto 0);
-  signal final_address: std_logic_vector(15 downto 0);
-  signal base_address: std_logic_vector(15 downto 0);
+  signal offset: std_logic_vector(15 downto 0) := "----------------";
+  signal final_address: std_logic_vector(15 downto 0) := "----------------";
+  signal base_address: std_logic_vector(15 downto 0) := "----------------";
   
   --Segnale per il registro per il pixel considerato
   signal pixel: std_logic_vector(7 downto 0);
@@ -84,7 +84,7 @@ begin
 			when S_RST =>
 				if (i_start = '1') then
 				    o_done <= '0';
-					o_en <= '0';
+				    o_en <= '0';
 				    o_we <= '0';
 				    next_state <= S_START;
 				else
@@ -96,15 +96,16 @@ begin
 			    o_address <= "0000000000000000";
 				next_state <= S_LOAD_COL;
 			when S_LOAD_COL =>
+			    o_en <= '1';
                 col <= i_data;	
                 o_address <= "0000000000000001";		    
 				next_state <= S_LOAD_RIG;
 			when S_LOAD_RIG =>
 			    rig <= i_data;
-			    current_address <= base_address;
-			    o_address <= base_address;
 				next_state <= S_CALC_ADDR;
 			when S_CALC_ADDR =>
+			    current_address <= base_address;
+			    o_address <= current_address;
 				if (offset = "0000000000000000") then
 					next_state <= S_DONE;
 				else
@@ -200,12 +201,13 @@ begin
 	end process;
   
   --Calcolo e assegnamento dei registri responsabili degli indirizzamenti in memoria
-  
+
   offset <= col*rig;
   base_address <= "0000000000000010";
   final_address <= base_address + offset;
   
   --Conversione registri interessati
+  
   pixel_16 <= X"00" & pixel;
   min_16 <=  X"00" & min_v;
   
